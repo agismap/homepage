@@ -257,6 +257,12 @@ function StickyHero() {
           </div>
           <div className="pointer-events-auto hidden gap-3 md:flex">
             <a
+              href="/login"
+              className="rounded-full bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
+            >
+              เข้าสู่ระบบ
+            </a>
+            <a
               href="#services"
               className="rounded-full bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
             >
@@ -268,6 +274,7 @@ function StickyHero() {
             >
               ติดต่อเรา
             </a>
+            
           </div>
         </div>
       </div>
