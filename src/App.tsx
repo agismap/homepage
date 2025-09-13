@@ -1,9 +1,46 @@
 import { useRef, useEffect, useState } from "react";
-import { MapPin, Drone, Database, BarChart3, MessageSquareMore } from "lucide-react";
-import { ComposableMap, Geographies, Geography } from "react-simple-maps";
+import {
+  MapPin,
+  Drone,
+  Database,
+  BarChart3,
+  MessageSquareMore,
+} from "lucide-react";
+import {
+  ComposableMap,
+  Geographies,
+  Geography,
+  Marker,
+} from "react-simple-maps";
+import { geoCentroid } from "d3-geo";
+
+// ADD this next to GEO_URL
+const WORLD_URL =
+  "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json" as const;
+
+// OPTIONAL: tiny helper to normalize country names that vary across datasets
+const normalize = (n: string) =>
+  ({
+    "Lao People's Democratic Republic": "Laos",
+    "Viet Nam": "Vietnam",
+  }[n] ?? n);
+
+// Countries you want to show “around Thailand”
+const NEIGHBORS = new Set([
+  "Myanmar",
+  "Laos",
+  "Cambodia",
+  "Malaysia",
+  "Vietnam",
+  "China",
+]);
 
 // Geography JSON URL (works in canvas + browsers)
-const GEO_URL = "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json" as const;
+const GEO_URL =
+  "https://raw.githubusercontent.com/apisit/thailand.json/refs/heads/master/thailandWithName.json" as const;
+
+const getName = (p: any) =>
+  p?.name ?? p?.NAME_1 ?? p?.NAME_TH ?? p?.PROV_NAMT ?? p?.NL_NAME_1 ?? "";
 
 // Small helper for fancy gradient text
 function GradientText({ children }: { children: React.ReactNode }) {
@@ -24,15 +61,15 @@ function StickyHero() {
       const maxScroll = window.innerHeight * 2.6; // Adjust based on hero height
       const progress = Math.min(scrolled / maxScroll, 1);
       setScrollProgress(progress);
-      
+
       // Determine which slide to show
       if (progress < 0.33) setCurrentSlide(0);
       else if (progress < 0.66) setCurrentSlide(1);
       else setCurrentSlide(2);
     };
 
-    window.addEventListener('scroll', handleScroll);
-    return () => window.removeEventListener('scroll', handleScroll);
+    window.addEventListener("scroll", handleScroll);
+    return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
   const slides = [
@@ -57,19 +94,19 @@ function StickyHero() {
   const Icon = currentSlideData.icon;
 
   // Calculate transform values based on scroll
-  const rotateY = -40 + (scrollProgress * 360);
-  const rotateX = 12 - (scrollProgress * 22);
-  const scale = 1.3 - (scrollProgress * 0.15);
-  const mapOpacity = 0.8 + (scrollProgress * 0.2);
+  const rotateY = -40 + scrollProgress * 360;
+  const rotateX = 12 - scrollProgress * 22;
+  const scale = 1.3 - scrollProgress * 0.15;
+  const mapOpacity = 0.8 + scrollProgress * 0.2;
 
   return (
     <section className="relative h-[360vh] bg-black">
       {/* STICKY STAGE */}
       <div className="sticky top-0 h-screen overflow-hidden">
         {/* Background aura */}
-        <div 
+        <div
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_50%_50%,rgba(40,160,255,0.25),rgba(0,0,0,0.9))]"
-          style={{ opacity: 0.2 + (scrollProgress * 0.4) }}
+          style={{ opacity: 0.2 + scrollProgress * 0.4 }}
         />
 
         {/* Grid background */}
@@ -78,44 +115,109 @@ function StickyHero() {
         </div>
 
         {/* Background map - Centered and behind content */}
-        <div className="absolute inset-0 flex items-center justify-center" style={{ perspective: '1600px' }}>
+        <div
+          className="absolute inset-0 flex items-center justify-center"
+          style={{ perspective: "1600px" }}
+        >
           <div
             className="w-[min(90vw,1000px)] h-[min(50vh,500px)] transition-transform duration-75 ease-out"
             style={{
               transform: `rotateY(${rotateY}deg) rotateX(${rotateX}deg) scale(${scale})`,
             }}
           >
-            <div 
+            <div
               className="absolute inset-0 rounded-2xl bg-gradient-to-r from-cyan-500/10 via-blue-500/10 to-purple-500/10 blur-3xl"
-              style={{ opacity: 0.25 + (scrollProgress * 0.65) }}
+              style={{ opacity: 0.25 + scrollProgress * 0.65 }}
             />
             <div className="relative h-full w-full overflow-hidden rounded-2xl border border-white/5 bg-slate-900/30 backdrop-blur-sm">
               <ComposableMap
                 projection="geoMercator"
-                projectionConfig={{
-                  scale: 120,
-                  center: [0, 30],
-                }}
+                projectionConfig={{ scale: 2200, center: [100, 13] }}
                 className="h-full w-full"
                 style={{ opacity: mapOpacity }}
               >
-                <Geographies geography={GEO_URL}>
+                {/* --- NEW: Surrounding countries layer (underlay) --- */}
+                <Geographies geography={WORLD_URL}>
                   {({ geographies }) =>
-                    geographies.map((geo) => (
-                      <Geography
-                        key={geo.rsmKey}
-                        geography={geo}
-                        fill="rgba(255,255,255,0.12)"
-                        stroke="rgba(255,255,255,0.25)"
-                        strokeWidth={0.5}
-                        style={{
-                          default: { outline: "none" },
-                          hover: { outline: "none", fill: "rgba(0,200,255,0.25)" },
-                          pressed: { outline: "none" },
-                        }}
-                      />
-                    ))
+                    geographies
+                      // Keep only the neighbors we care about
+                      .filter((geo) =>
+                        NEIGHBORS.has(normalize(geo.properties.name))
+                      )
+                      .map((geo) => (
+                        <Geography
+                          key={`nbr-${geo.rsmKey}`}
+                          geography={geo}
+                          fill="rgba(255,255,255,0.08)" // subtle fill
+                          stroke="rgba(255,255,255,0.25)" // light borders
+                          strokeWidth={0.5}
+                          style={{
+                            default: { outline: "none" },
+                            hover: {
+                              outline: "none",
+                              fill: "rgba(0,200,255,0.18)",
+                            },
+                            pressed: { outline: "none" },
+                          }}
+                        />
+                      ))
                   }
+                </Geographies>
+
+                {/* --- EXISTING: Thailand provinces (overlay) --- */}
+                <Geographies geography={GEO_URL}>
+                  {({ geographies }) => (
+                    <>
+                      {geographies.map((geo) => (
+                        <Geography
+                          key={geo.rsmKey}
+                          geography={geo}
+                          fill="rgba(255,255,255,0.12)"
+                          stroke="rgba(255,255,255,0.25)"
+                          strokeWidth={0.5}
+                          style={{
+                            default: { outline: "none" },
+                            hover: {
+                              outline: "none",
+                              fill: "rgba(0,200,255,0.25)",
+                            },
+                            pressed: { outline: "none" },
+                          }}
+                        />
+                      ))}
+
+                      {/* Province labels */}
+                      {geographies.map((geo) => {
+                        const name = getName(geo.properties);
+                        if (!name) return null;
+
+                        const [lon, lat] = (geoCentroid(geo as any) as [
+                          number,
+                          number
+                        ]) ?? [0, 0];
+                        return (
+                          <Marker
+                            key={`label-${geo.rsmKey}`}
+                            coordinates={[lon, lat]}
+                          >
+                            <text
+                              fontSize={9}
+                              textAnchor="middle"
+                              fill="rgba(255,255,255,0.9)"
+                              style={{
+                                pointerEvents: "none",
+                                paintOrder: "stroke",
+                                stroke: "rgba(0,0,0,0.6)",
+                                strokeWidth: 1,
+                              }}
+                            >
+                              {name}
+                            </text>
+                          </Marker>
+                        );
+                      })}
+                    </>
+                  )}
                 </Geographies>
               </ComposableMap>
             </div>
@@ -127,7 +229,9 @@ function StickyHero() {
           <div className="w-full max-w-4xl px-6 text-center transition-all duration-500 ease-out">
             <div className="mx-auto inline-flex items-center gap-2 rounded-full border border-white/20 bg-black/20 px-4 py-2 backdrop-blur-md">
               <Icon className="h-4 w-4 text-white" />
-              <span className="text-xs tracking-wide text-white/90">AGIS MAP</span>
+              <span className="text-xs tracking-wide text-white/90">
+                AGIS MAP
+              </span>
             </div>
             <h1 className="mt-4 text-[clamp(32px,5vw,72px)] font-semibold leading-[1.1] drop-shadow-2xl transition-all duration-500 ease-out">
               <GradientText>{currentSlideData.title}</GradientText>
@@ -148,11 +252,22 @@ function StickyHero() {
         {/* Top nav overlay */}
         <div className="pointer-events-none absolute inset-x-0 top-0 flex items-center justify-between px-6 py-5 md:px-10">
           <div className="pointer-events-auto select-none text-sm font-medium tracking-wide text-white/80">
-            บริษัท เอจิส แม็พ จำกัด <span className="mx-2 text-white/30">•</span> AGIS MAP CO., LTD.
+            บริษัท เอจิส แม็พ จำกัด{" "}
+            <span className="mx-2 text-white/30">•</span> AGIS MAP CO., LTD.
           </div>
           <div className="pointer-events-auto hidden gap-3 md:flex">
-            <a href="#services" className="rounded-full bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20">บริการ</a>
-            <a href="#contact" className="rounded-full bg-cyan-500 px-4 py-2 text-sm font-medium text-black hover:bg-cyan-400">ติดต่อเรา</a>
+            <a
+              href="#services"
+              className="rounded-full bg-white/10 px-4 py-2 text-sm text-white hover:bg-white/20"
+            >
+              บริการ
+            </a>
+            <a
+              href="#contact"
+              className="rounded-full bg-cyan-500 px-4 py-2 text-sm font-medium text-black hover:bg-cyan-400"
+            >
+              ติดต่อเรา
+            </a>
           </div>
         </div>
       </div>
@@ -165,7 +280,7 @@ function Services() {
     {
       icon: MapPin,
       title: "ระบบสารสนเทศภูมิศาสตร์ (GIS) & แผนที่ภาษี",
-      th: `รับจัดทำระบบสารสนเทศภูมิศาสตร์ แผนที่ภาษี และงานสำรวจภาคสนาม เพื่อสนับสนุนการบริหารจัดการทรัพย์สินและทรัพยากรของหน่วยงานราชการ องค์กรปกครองส่วนท้องถิ่น และภาคเอกชน` ,
+      th: `รับจัดทำระบบสารสนเทศภูมิศาสตร์ แผนที่ภาษี และงานสำรวจภาคสนาม เพื่อสนับสนุนการบริหารจัดการทรัพย์สินและทรัพยากรของหน่วยงานราชการ องค์กรปกครองส่วนท้องถิ่น และภาคเอกชน`,
       en: `GIS platforms, cadastral/tax maps, and field surveys for asset/resource management across government and private sectors.`,
     },
     {
@@ -195,20 +310,25 @@ function Services() {
     {
       icon: BarChart3,
       title: "ข้อมูล • วิเคราะห์ • สถิติ",
-      th: `ด้านนวัตกรรมข้อมูลและซอฟต์แวร์ เพื่อการวิเคราะห์ ประเมินค่า และออกรายงานเชิงสถิติ รองรับทั้งงานท้องถิ่น งานสาธารณะ และภาคเอกชน` ,
+      th: `ด้านนวัตกรรมข้อมูลและซอฟต์แวร์ เพื่อการวิเคราะห์ ประเมินค่า และออกรายงานเชิงสถิติ รองรับทั้งงานท้องถิ่น งานสาธารณะ และภาคเอกชน`,
       en: `Data innovation & analytics: valuation, dashboards, and statistical reporting.`,
     },
   ];
 
   return (
-    <section id="services" className="relative bg-gradient-to-b from-black to-slate-950 py-24 text-white">
+    <section
+      id="services"
+      className="relative bg-gradient-to-b from-black to-slate-950 py-24 text-white"
+    >
       <div className="mx-auto w-[92%] max-w-6xl">
         <div className="mx-auto mb-12 max-w-3xl text-center">
           <h2 className="text-3xl font-semibold md:text-5xl">
             <GradientText>บริการของเรา</GradientText>
           </h2>
           <p className="mt-4 text-white/70">
-            เราพัฒนาระบบสารสนเทศและโซลูชันด้านภูมิสารสนเทศแบบครบวงจร — ตั้งแต่สำรวจพื้นที่ด้วยโดรนจนถึงระบบ e‑Service และรายงานสถิติระดับองค์กร
+            เราพัฒนาระบบสารสนเทศและโซลูชันด้านภูมิสารสนเทศแบบครบวงจร —
+            ตั้งแต่สำรวจพื้นที่ด้วยโดรนจนถึงระบบ e‑Service
+            และรายงานสถิติระดับองค์กร
           </p>
         </div>
 
@@ -224,7 +344,9 @@ function Services() {
                   <Icon className="h-6 w-6" />
                 </div>
                 <h3 className="text-lg font-semibold md:text-xl">{it.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-white/80">{it.th}</p>
+                <p className="mt-2 text-sm leading-relaxed text-white/80">
+                  {it.th}
+                </p>
                 <p className="mt-2 text-xs text-white/50">{it.en}</p>
                 <div className="pointer-events-none absolute -bottom-24 right-0 h-48 w-48 rounded-full bg-cyan-500/10 blur-3xl transition-all duration-500 group-hover:bottom-0" />
               </div>
@@ -244,7 +366,8 @@ function CTA() {
           ยกระดับ <GradientText>ข้อมูลของคุณ</GradientText> ให้ไปได้ไกลกว่าเดิม
         </h2>
         <p className="mx-auto mt-4 max-w-3xl text-white/70">
-          เราช่วยออกแบบ ตั้งค่า และดูแลระบบ GIS • Drone Survey • e‑Service • Analytics ครบวงจร
+          เราช่วยออกแบบ ตั้งค่า และดูแลระบบ GIS • Drone Survey • e‑Service •
+          Analytics ครบวงจร
         </p>
         <div className="mt-8 flex items-center justify-center gap-3">
           <a
@@ -272,7 +395,8 @@ export default function HomePage() {
       <Services />
       <CTA />
       <footer className="border-t border-white/10 bg-black/80 py-10 text-center text-sm text-white/50">
-        บริษัท เอจิส แม็พ จำกัด · AGIS MAP CO., LTD. — © {new Date().getFullYear()}
+        บริษัท เอจิส แม็พ จำกัด · AGIS MAP CO., LTD. — ©{" "}
+        {new Date().getFullYear()}
       </footer>
     </main>
   );
