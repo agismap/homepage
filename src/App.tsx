@@ -389,6 +389,12 @@ function CTA() {
           >
             ดูบริการ
           </a>
+          <a
+            href="/login"
+            className="rounded-full border border-white/20 px-6 py-3 text-sm font-semibold text-white/90 hover:bg-white/10"
+          >
+            เข้าสู่ระบบ
+          </a>
         </div>
       </div>
     </section>
