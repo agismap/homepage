@@ -378,7 +378,7 @@ function CTA() {
         </p>
         <div className="mt-8 flex items-center justify-center gap-3">
           <a
-            href="mailto:contact@agismap.com"
+            href="mailto:contact@agismaps.com"
             className="rounded-full bg-cyan-500 px-6 py-3 text-sm font-semibold text-black hover:bg-cyan-400"
           >
             ติดต่อเรา
